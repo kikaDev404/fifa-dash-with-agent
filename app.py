@@ -13,12 +13,17 @@ project_root = dirname(abspath(__file__))
 here = Path(__file__).parent
 
 icon_explain = ui.img(src="stars.svg")
+reset_icon = ui.img(src="reset.svg")
 
 app_ui = ui.page_sidebar(
     ui.sidebar(
-        ui.chat_ui(
-            "chat", height = "100%"
+        ui.card(
+            ui.card_header("Chat Agent",ui.span(ui.input_action_link("reset_chat", reset_icon, style="color: inherit;",aria_label = "Reset Chat")),class_="d-flex justify-content-between align-items-center"),
+            ui.chat_ui(
+                "chat", height = "100%" 
         ),
+        ),
+
         width = 500,
         style = "height : 100%",
         gap = "3px"
@@ -119,6 +124,7 @@ def server(input, output, session):
             await query_db(query)
         await update_filter(query, title)
     
+    
 
 
     def fork_session():
@@ -136,6 +142,16 @@ def server(input, output, session):
     chat_session.register_tool(update_dashboard)
     chat_session.register_tool(query_db)
 
+    def reset_chat_session():
+        nonlocal chat_session
+        chat_session.set_turns([])
+        chat_session = Chat(
+            system_prompt=prompt_process.system_prompt(fifa_data, "fifa"),
+            model=chat_model
+        )
+        chat_session.register_tool(update_dashboard)
+        chat_session.register_tool(query_db)
+
     #===============================================================================
 
     chat = ui.Chat("chat", messages=["Hello this is your dashboard agent"])
@@ -148,6 +164,18 @@ def server(input, output, session):
             traceback.print_exc()
             return await chat.append_message(f"**Error** : {e}")
         await chat.append_message_stream(stream)
+    
+    @reactive.effect
+    @reactive.event(input.reset_chat)
+    async def reset_chat():
+        reset_chat_session()
+
+        current_query.set("")
+        current_title.set("")
+
+        await chat.clear_messages()
+        await chat.append_message("Hello this is your dashboard agent")
+
 
 
 
