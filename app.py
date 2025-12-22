@@ -1,6 +1,6 @@
 import traceback
 from shiny import App, render, ui, reactive
-from shinywidgets import output_widget
+from shinywidgets import output_widget, render_widget
 import duckdb as ddb
 from preprocess import fifa_data
 from os.path import dirname, abspath, join
@@ -8,6 +8,7 @@ import faicons as fa
 from pathlib import Path
 from chatlas import ChatOllama
 import prompt_process
+import plotly.express as px
 
 project_root = dirname(abspath(__file__))
 here = Path(__file__).parent
@@ -43,6 +44,17 @@ app_ui = ui.page_sidebar(
             ui.output_text("total_players"),
             showcase=fa.icon_svg("user", "regular")
         ),
+        ui.value_box(
+            "Total Male Players",
+            ui.output_text("total_male_players"),
+            showcase=fa.icon_svg("user", "regular")
+        ),
+        ui.value_box(
+            "Total Female Players",
+            ui.output_text("total_female_players"),
+            showcase=fa.icon_svg("user", "regular")
+        ),
+
         fill=False
     ),
     ui.layout_columns(
@@ -56,7 +68,7 @@ app_ui = ui.page_sidebar(
         ui.span(ui.input_action_link("interpret_sex_in_leagues", icon_explain, class_ = "me-3", aria_label = "Explain the bar graph")),
         class_="d-flex justify-content-between align-items-center",
         ),
-        output_widget("sex_in_leagues"),
+        output_widget("pac_vs_dribble"),
         full_screen=True
     ),
     ),
@@ -78,6 +90,28 @@ def server(input, output, session):
         return ddb.query(current_query()).df()
     
     @render.text
+    def total_players():
+        data = fifa_filter()
+        if data.empty:
+            return "0"
+        return str(len(data))
+
+    @render.text
+    def total_male_players():
+        data = fifa_filter()
+        if data.empty:
+            return "0"
+        return str(len(data.loc[data['GENDER'] == 'M']))
+
+    @render.text
+    def total_female_players():
+        data = fifa_filter()
+        if data.empty:
+            return "0"
+        return str(len(data.loc[data['GENDER'] == 'F']))
+    
+    
+    @render.text
     def show_title():
         return current_title()
     
@@ -88,6 +122,14 @@ def server(input, output, session):
     @render.data_frame
     def table():
         return render.DataGrid(fifa_filter())
+    
+    @render_widget
+    def pac_vs_dribble():
+        data = fifa_filter()
+        if ("PAC" in data.columns) and ("DRI" in data.columns):
+            fig = px.scatter(data, x="PAC", y="DRI")
+            return fig
+
     
 
     #================================================================
