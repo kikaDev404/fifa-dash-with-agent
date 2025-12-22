@@ -1,6 +1,6 @@
 import traceback
 from shiny import App, render, ui, reactive
-from shinywidgets import output_widget, render_widget
+from shinywidgets import output_widget, render_plotly, render_widget
 import duckdb as ddb
 from preprocess import fifa_data
 from os.path import dirname, abspath, join
@@ -9,6 +9,8 @@ from pathlib import Path
 from chatlas import ChatOllama
 import prompt_process
 import plotly.express as px
+import plotly.graph_objects as go
+from explain_plot import explain_plot
 
 project_root = dirname(abspath(__file__))
 here = Path(__file__).parent
@@ -64,8 +66,8 @@ app_ui = ui.page_sidebar(
             full_screen=True
         ),
     ui.card(
-        ui.card_header("Sex in each leage", 
-        ui.span(ui.input_action_link("interpret_sex_in_leagues", icon_explain, class_ = "me-3", aria_label = "Explain the bar graph")),
+        ui.card_header("Pace and Dribble Analysis", 
+        ui.span(ui.input_action_link("interpret_pace_vs_dribble", icon_explain, class_ = "me-3", aria_label = "Explain the bar graph")),
         class_="d-flex justify-content-between align-items-center",
         ),
         output_widget("pac_vs_dribble"),
@@ -123,7 +125,7 @@ def server(input, output, session):
     def table():
         return render.DataGrid(fifa_filter())
     
-    @render_widget
+    @render_plotly
     def pac_vs_dribble():
         data = fifa_filter()
         if ("PAC" in data.columns) and ("DRI" in data.columns):
@@ -217,6 +219,13 @@ def server(input, output, session):
 
         await chat.clear_messages()
         await chat.append_message("Hello this is your dashboard agent")
+    #===================================================================================
+    #Interpretting codes
+
+    @reactive.effect
+    @reactive.event(input.interpret_pace_vs_dribble)
+    async def interpret_pace_vs_dribble():
+        await explain_plot(fork_session(), go.FigureWidget(pac_vs_dribble.widget))
 
 
 
