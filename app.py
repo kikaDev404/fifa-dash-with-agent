@@ -74,6 +74,17 @@ app_ui = ui.page_sidebar(
         full_screen=True
     ),
     ),
+    ui.layout_columns(
+            ui.card(
+        ui.card_header(
+            ui.output_text("dynamic_plot_title"),
+            ui.span(ui.input_action_link("interpret_your_code", icon_explain, class_ = "me-3", aria_label = "Explain the graph")),
+            class_="d-flex justify-content-between align-items-center",
+        ),
+        ui.output_ui("dynamic_graph"),
+        full_screen=True,
+    ),
+    ),
     title="Fifa 26 player data",
     fillable = True,
 
@@ -84,6 +95,7 @@ def server(input, output, session):
 
     current_query = reactive.Value("")
     current_title = reactive.Value("")
+    dynamic_graph_card_title = reactive.Value("Dynamic Graphs Playground")
 
     @reactive.calc
     def fifa_filter():
@@ -94,21 +106,21 @@ def server(input, output, session):
     @render.text
     def total_players():
         data = fifa_filter()
-        if data.empty:
+        if data.empty or "GENDER" not in data.columns:
             return "0"
         return str(len(data))
 
     @render.text
     def total_male_players():
         data = fifa_filter()
-        if data.empty:
+        if data.empty or "GENDER" not in data.columns:
             return "0"
         return str(len(data.loc[data['GENDER'] == 'M']))
 
     @render.text
     def total_female_players():
         data = fifa_filter()
-        if data.empty:
+        if data.empty or "GENDER" not in data.columns:
             return "0"
         return str(len(data.loc[data['GENDER'] == 'F']))
     
@@ -120,6 +132,10 @@ def server(input, output, session):
     @render.text
     def show_query():
         return current_query()
+    
+    @render.text
+    def dynamic_plot_title():
+        return dynamic_graph_card_title()
 
     @render.data_frame
     def table():
@@ -168,6 +184,20 @@ def server(input, output, session):
             await query_db(query)
         await update_filter(query, title)
     
+    async def plot_dynamic_graph(title : str):
+        """Help to plot a dynamic graph when user ask to plot a graph with given parameter.
+
+        Args:
+            title : the title of the graph
+        """
+
+        if title != "":
+            print("tool called")
+            dynamic_graph_card_title.set(title)
+            return "Sucessfully plotted the graph"
+
+
+    
     
 
 
@@ -180,11 +210,13 @@ def server(input, output, session):
         new_session = Chat(system_prompt=prompt_process.system_prompt(fifa_data, "fifa"), model = chat_model)
         new_session.register_tool(update_dashboard)
         new_session.register_tool(query_db)
+        new_session.register_tool(plot_dynamic_graph)
         new_session.set_turns(chat_session.get_turns()) #copy the main chat data to the explanation agent
         return new_session
     
     chat_session.register_tool(update_dashboard)
     chat_session.register_tool(query_db)
+    chat_session.register_tool(plot_dynamic_graph)
 
     def reset_chat_session():
         nonlocal chat_session
@@ -195,6 +227,7 @@ def server(input, output, session):
         )
         chat_session.register_tool(update_dashboard)
         chat_session.register_tool(query_db)
+        chat_session.register_tool(plot_dynamic_graph)
 
     #===============================================================================
 
@@ -216,6 +249,7 @@ def server(input, output, session):
 
         current_query.set("")
         current_title.set("")
+        dynamic_graph_card_title.set("Dynamic Graphs Playground")
 
         await chat.clear_messages()
         await chat.append_message("Hello this is your dashboard agent")
