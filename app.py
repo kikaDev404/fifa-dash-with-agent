@@ -81,7 +81,7 @@ app_ui = ui.page_sidebar(
             ui.card(
         ui.card_header(
             ui.output_text("dynamic_plot_title"),
-            ui.span(ui.input_action_link("interpret_your_code", icon_explain, class_ = "me-3", aria_label = "Explain the graph")),
+            ui.span(ui.input_action_link("interpret_your_graph", icon_explain, class_ = "me-3", aria_label = "Explain the graph")),
             class_="d-flex justify-content-between align-items-center",
         ),
         ui.output_ui("dynamic_graph"),
