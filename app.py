@@ -1,4 +1,5 @@
 import traceback
+import asyncio
 from shiny import App, render, ui, reactive
 from shinywidgets import output_widget, render_plotly, render_widget
 import duckdb as ddb
@@ -6,7 +7,7 @@ from preprocess import fifa_data
 from os.path import dirname, abspath, join
 import faicons as fa
 from pathlib import Path
-from chatlas import ChatOllama
+from chatlas import ChatOllama, content_image_url
 import prompt_process
 import plotly.express as px
 import plotly.graph_objects as go
@@ -20,6 +21,7 @@ reset_icon = ui.img(src="reset.svg")
 
 app_ui = ui.page_sidebar(
     ui.sidebar(
+        ui.input_action_button("shot", "Takse Screenshot"),
         ui.card(
             ui.card_header("Chat Agent",ui.span(ui.input_action_link("reset_chat", reset_icon, style="color: inherit;",aria_label = "Reset Chat")),class_="d-flex justify-content-between align-items-center"),
             ui.chat_ui(
@@ -30,6 +32,10 @@ app_ui = ui.page_sidebar(
         width = 500,
         style = "height : 100%",
         gap = "3px"
+    ),
+    ui.head_content(
+        ui.tags.script(src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+        ui.tags.script(src = 'screenshot.js')
     ),
     ui.tags.link(rel = "stylesheet", href="styles.css"),
     #
@@ -74,6 +80,7 @@ app_ui = ui.page_sidebar(
         full_screen=True
     ),
     ),
+    ui.card("The image Agent sees" , ui.output_ui("preview_img")), #remove
     title="Fifa 26 player data",
     fillable = True,
 
@@ -84,6 +91,13 @@ def server(input, output, session):
 
     current_query = reactive.Value("")
     current_title = reactive.Value("")
+    current_image = reactive.Value("") #remove
+    screenshot_future = None
+
+    @reactive.effect
+    @reactive.event(input.shot)
+    async def _():
+        await session.send_custom_message("take_screenshot", {})
 
     @reactive.calc
     def fifa_filter():
@@ -131,6 +145,13 @@ def server(input, output, session):
         if ("PAC" in data.columns) and ("DRI" in data.columns):
             fig = px.scatter(data, x="PAC", y="DRI")
             return fig
+    
+    @render.ui
+    def preview_img():
+        if input.screenshot_data() is None:
+            return 
+        current_image.set(input.screenshot_data())
+        return ui.img(src=current_image())
 
     
 
@@ -167,7 +188,35 @@ def server(input, output, session):
         if query != "":
             await query_db(query)
         await update_filter(query, title)
-    
+
+    @reactive.effect
+    @reactive.event(input.screenshot_data)
+    async def capture_screenshot_data():
+        nonlocal screenshot_future
+        # If we are waiting for a screenshot, resolve the future with the new data
+        if screenshot_future and not screenshot_future.done():
+            data = input.screenshot_data()
+            if data:
+                screenshot_future.set_result(data)
+
+    async def take_screenshot():
+        print("agent has called the tool")
+        """use this tool to take the screen shot of the dashboard in which you are working on. this tool gives you the screenshot. you can use this to gather information on what is happening in the dashboard."""
+        nonlocal screenshot_future
+        
+        # Create a new future for this request
+        screenshot_future = asyncio.Future()
+        
+        # Trigger the client action
+        await session.send_custom_message("take_screenshot", {})
+        
+        try:
+            # Wait for the effect above to resolve this future (timeout after 10s to be safe)
+            image_data = await asyncio.wait_for(screenshot_future, timeout=10.0)
+            current_image.set(image_data)
+            return content_image_url(image_data)
+        except asyncio.TimeoutError:
+            return "Error: Screenshot timed out."
     
 
 
@@ -180,11 +229,13 @@ def server(input, output, session):
         new_session = Chat(system_prompt=prompt_process.system_prompt(fifa_data, "fifa"), model = chat_model)
         new_session.register_tool(update_dashboard)
         new_session.register_tool(query_db)
+        chat_session.register_tool(take_screenshot)
         new_session.set_turns(chat_session.get_turns()) #copy the main chat data to the explanation agent
         return new_session
     
     chat_session.register_tool(update_dashboard)
     chat_session.register_tool(query_db)
+    chat_session.register_tool(take_screenshot)
 
     def reset_chat_session():
         nonlocal chat_session
