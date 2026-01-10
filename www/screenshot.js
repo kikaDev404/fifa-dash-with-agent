@@ -25,7 +25,9 @@ async function takeScreenshot() {
     try {
         const canvas = await html2canvas(document.body, {
             useCORS: true,
-            logging: true
+            logging: true,
+            scrollY: -window.scrollY,
+            scrollX: -window.scrollX
         });
         const base64image = canvas.toDataURL("image/png");
         return base64image;

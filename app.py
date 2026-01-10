@@ -229,7 +229,7 @@ def server(input, output, session):
         new_session = Chat(system_prompt=prompt_process.system_prompt(fifa_data, "fifa"), model = chat_model)
         new_session.register_tool(update_dashboard)
         new_session.register_tool(query_db)
-        chat_session.register_tool(take_screenshot)
+        new_session.register_tool(take_screenshot)
         new_session.set_turns(chat_session.get_turns()) #copy the main chat data to the explanation agent
         return new_session
     
@@ -246,6 +246,7 @@ def server(input, output, session):
         )
         chat_session.register_tool(update_dashboard)
         chat_session.register_tool(query_db)
+        chat_session.register_tool(take_screenshot)
 
     #===============================================================================
 
